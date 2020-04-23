@@ -52,11 +52,25 @@ if sys.platform == 'win32':
     import servicemanager
 
 import daemonizer
+
+sys.path.append('/laika/dist/rel/prod_tools/Linux_26/STUDIO_TESTING_LATEST/lib/python')
 import shotgun_api3 as sg
 from shotgun_api3.lib.sgtimezone import SgTimezone
-
-
 SG_TIMEZONE = SgTimezone()
+
+import sentry_sdk
+from sentry_sdk.integrations.logging import LoggingIntegration
+sentry_logging = LoggingIntegration(
+    level=logging.WARN,
+    event_level=logging.ERROR
+)
+sentry = sentry_sdk.init(
+    dsn="https://65a8a49b06924cea980d09f656fb3103@sentry.pt.laika.com/65",
+    ca_certs="/etc/ssl/certs/ca-bundle.crt",
+    send_default_pii=True,
+    integrations=[sentry_logging],
+)
+
 CURRENT_PYTHON_VERSION = StrictVersion(sys.version.split()[0])
 PYTHON_25 = StrictVersion('2.5')
 PYTHON_26 = StrictVersion('2.6')
@@ -250,6 +264,11 @@ class Engine(object):
 
         # Get config values
         self._pluginCollections = [PluginCollection(self, s) for s in self.config.getPluginPaths()]
+        print self.config.getShotgunURL()
+        print self.config.getEngineScriptName()
+        print self.config.getEngineScriptKey()
+        print self.config.getEngineProxyServer()
+        sg.shotgun.NO_SSL_VALIDATION = True
         self._sg = sg.Shotgun(
             self.config.getShotgunURL(),
             self.config.getEngineScriptName(),
@@ -510,7 +529,7 @@ class Engine(object):
 
         if nextEventId is not None:
             filters = [['id', 'greater_than', nextEventId - 1]]
-            fields = ['id', 'event_type', 'attribute_name', 'meta', 'entity', 'user', 'project', 'session_uuid', 'created_at']
+            fields = ['id', 'event_type', 'attribute_name', 'meta', 'entity', 'user', 'project', 'session_uuid', 'created_at', 'description']
             order = [{'column':'id', 'direction':'asc'}]
     
             conn_attempts = 0
@@ -804,7 +823,12 @@ class Plugin(object):
         for callback in self:
             if callback.isActive():
                 if callback.canProcess(event):
-                    msg = 'Dispatching event %d to callback %s.'
+                    msg = 'Dispatching event %d to callback %s - event time: %s - latency: %s' % (
+                              event['id'],
+                              str(callback),
+                              event['created_at'],
+                              datetime.datetime.now() - event['created_at'].replace(tzinfo=None),
+                          )
                     self.logger.debug(msg, event['id'], str(callback))
                     if not callback.process(event):
                         # A callback in the plugin failed. Deactivate the whole

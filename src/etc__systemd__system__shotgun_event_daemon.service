@@ -1,0 +1,14 @@
+[Unit]
+Description=The event daemon for shotgun - scans for new events every 5 seconds and runs etc/shotgun/daemon_plugins against them
+After=syslog.target network.target remote-fs.target nss-lookup.target
+
+[Service]
+Type=forking
+PIDFile=/var/log/shotgun_event_daemon/shotgun_event_daemon.pid
+ExecStart=/usr/sbin/shotgun_event_daemon/shotgunEventDaemon.py start
+ExecReload=/usr/sbin/shotgun_event_daemon/shotgunEventDaemon.py restart
+ExecStop=/usr/sbin/shotgun_event_daemon/shotgunEventDaemon.py stop
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
